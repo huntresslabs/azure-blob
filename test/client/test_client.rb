@@ -431,6 +431,20 @@ class TestClient < TestCase
     assert_equal "another type", response["Content-Type"]
   end
 
+  def test_signed_uri_encoding_override
+    client.create_block_blob(key, content, content_encoding: "gzip")
+
+    uri = client.signed_uri(
+      key,
+      permissions: "r",
+      expiry: Time.at(Time.now.to_i + EXPIRATION).utc.iso8601,
+      content_encoding: "gzip",
+    )
+
+    response = Net::HTTP.get_response(uri)
+    assert_equal "gzip", response["Content-Encoding"]
+  end
+
   def test_get_container_properties
     skip if ENV["TESTING_AZURITE"]
     container = client.get_container_properties
