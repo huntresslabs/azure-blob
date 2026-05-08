@@ -96,6 +96,7 @@ module AzureBlob
     # - key: destination blob path
     # - source_key: source blob path
     # - options: additional options
+    #   - sync: When set to false, the `x-ms-requires-sync` header is not included
     #   - source_client: AzureBlob::Client instance for the source container (optional)
     #     If not provided, copies from within the same container
     #
@@ -105,10 +106,9 @@ module AzureBlob
 
       source_uri = source_client.signed_uri(source_key, permissions: "r", expiry: Time.at(Time.now.to_i + 300).utc.iso8601)
 
-      headers = {
-        "x-ms-copy-source": source_uri.to_s,
-        "x-ms-requires-sync": "true",
-      }.merge(additional_headers(options))
+      headers = { "x-ms-copy-source": source_uri.to_s }
+      headers.merge! "x-ms-requires-sync": "true" if options[:sync] != false
+      headers.merge!(additional_headers(options))
 
       Http.new(uri, headers, signer:, **options.slice(:metadata, :tags)).put
     end

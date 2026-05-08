@@ -214,6 +214,17 @@ class TestClient < TestCase
     assert_equal content, client.get_blob(copy_key)
   end
 
+  def test_copy_without_sync
+    client.create_block_blob(key, content)
+    assert_equal content, client.get_blob(key)
+
+    copy_key = "#{key}_copy_async"
+
+    client.copy_blob(copy_key, key, { sync: false })
+
+    assert_equal content, client.get_blob(copy_key)
+  end
+
   def test_delete
     client.create_block_blob(key, content)
     assert_equal content, client.get_blob(key)
