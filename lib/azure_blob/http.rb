@@ -130,7 +130,15 @@ module AzureBlob
     end
 
     def azure_error_code
-      Document.new(response.body).get_elements("//Error/Code").first.get_text.to_s if response.body
+      return unless response.body
+
+      Document.new(response.body).get_elements("//Error/Code").first&.get_text&.to_s
+    rescue REXML::ParseException
+      # The error body was not a well-formed <Error><Code> document (for example an
+      # emulator or proxy that answered with non-Azure XML). Fall back to nil so
+      # error_from_response can still raise a real error carrying the status and body,
+      # instead of masking it with a confusing "Malformed XML" parse exception.
+      nil
     end
 
     def error_from_response
