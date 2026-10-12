@@ -25,17 +25,20 @@ module AzureBlob
 
     include REXML
 
-    def initialize(uri, headers = {}, signer: nil, metadata: {}, tags: {}, debug: false, raise_on_error: true)
+    def initialize(uri, headers = {}, signer: nil, metadata: {}, tags: {}, debug: false, raise_on_error: true, connection: nil)
       @raise_on_error = raise_on_error
       @date = Time.now.httpdate
       @uri = uri
       @signer = signer
+      @connection = connection
       @headers = headers.merge(
         Metadata.new(metadata).headers,
         Tags.new(tags).headers,
       )
 
       sanitize_headers
+
+      return if connection
 
       @http = Net::HTTP.new(uri.hostname, uri.port)
       @http.use_ssl = uri.port == 443
@@ -48,45 +51,35 @@ module AzureBlob
 
     def get_full_response(&block)
       sign_request("GET") if signer
-      @response = http.start do |http|
-        http.request_get(uri, headers, &block)
-      end
+      @response = perform(Net::HTTP::Get.new(uri, headers), &block)
       raise_error  unless success?
       response
     end
 
     def put(content = "")
       sign_request("PUT") if signer
-      @response = http.start do |http|
-        http.put(uri, content, headers)
-      end
+      @response = perform(Net::HTTP::Put.new(uri, headers), content)
       raise_error  unless success?
       true
     end
 
     def post(content = "")
       sign_request("POST") if signer
-      @response = http.start do |http|
-        http.post(uri, content, headers)
-      end
+      @response = perform(Net::HTTP::Post.new(uri, headers), content)
       raise_error  unless success?
       response.body
     end
 
     def head
       sign_request("HEAD") if signer
-      @response = http.start do |http|
-        http.head(uri, headers)
-      end
+      @response = perform(Net::HTTP::Head.new(uri, headers))
       raise_error  unless success?
       response
     end
 
     def delete
       sign_request("DELETE") if signer
-      @response = http.start do |http|
-        http.delete(uri, headers)
-      end
+      @response = perform(Net::HTTP::Delete.new(uri, headers))
       raise_error  unless success?
       response.body
     end
@@ -96,6 +89,14 @@ module AzureBlob
     end
 
     private
+
+    def perform(request, body = nil, &block)
+      request.body = body if body
+
+      return connection.request(uri, request, &block) if connection
+
+      http.start { |http| http.request(request, &block) }
+    end
 
     ERROR_MAPPINGS = {
       Net::HTTPNotFound => FileNotFoundError,
@@ -145,6 +146,6 @@ module AzureBlob
       ERROR_MAPPINGS[status] || ERROR_CODE_MAPPINGS[azure_error_code] || Error
     end
 
-    attr_accessor :host, :http, :signer, :response, :headers, :uri, :date, :raise_on_error
+    attr_accessor :host, :http, :signer, :response, :headers, :uri, :date, :raise_on_error, :connection
   end
 end
