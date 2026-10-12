@@ -91,7 +91,11 @@ module AzureBlob
     private
 
     def perform(request, body = nil, &block)
-      request.body = body if body
+      if body.respond_to?(:read)
+        request.body_stream = body
+      elsif body
+        request.body = body
+      end
 
       return connection.request(uri, request, &block) if connection
 

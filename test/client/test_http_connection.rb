@@ -53,6 +53,17 @@ class TestHttpConnection < TestCase
     assert_equal [ "content", "form", nil, nil ], requests.map(&:body)
   end
 
+  def test_io_bodies_are_streamed_instead_of_assigned_as_body
+    connection = FakeConnection.new
+    io = StringIO.new("streamed")
+
+    AzureBlob::Http.new(@uri, connection:).put(io)
+
+    request = connection.calls.fetch(0).last
+    assert_nil request.body
+    assert_same io, request.body_stream
+  end
+
   def test_streams_the_response_through_the_block
     connection = FakeConnection.new(body: "chunk")
     yielded = nil
