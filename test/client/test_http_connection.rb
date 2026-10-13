@@ -53,15 +53,15 @@ class TestHttpConnection < TestCase
     assert_equal [ "content", "form", nil, nil ], requests.map(&:body)
   end
 
-  def test_io_bodies_are_streamed_instead_of_assigned_as_body
+  def test_io_bodies_are_read_into_the_request_body
     connection = FakeConnection.new
     io = StringIO.new("streamed")
 
     AzureBlob::Http.new(@uri, connection:).put(io)
 
     request = connection.calls.fetch(0).last
-    assert_nil request.body
-    assert_same io, request.body_stream
+    assert_equal "streamed", request.body
+    assert_nil request.body_stream
   end
 
   def test_streams_the_response_through_the_block
@@ -92,7 +92,7 @@ class TestHttpConnection < TestCase
     assert_equal [ Net::HTTP::Delete, Net::HTTP::Head ], connection.calls.map { |_, request| request.class }
   end
 
-  def test_put_blob_block_streams_an_io_body_over_a_real_socket
+  def test_put_blob_block_sends_an_io_body_over_a_real_socket
     server = TCPServer.new("127.0.0.1", 0)
     received = Thread.new do
       socket = server.accept
