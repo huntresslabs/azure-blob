@@ -91,6 +91,7 @@ module AzureBlob
     private
 
     def perform(request, body = nil, &block)
+      body = body.read if body.respond_to?(:read)
       request.body = body if body
 
       return connection.request(uri, request, &block) if connection

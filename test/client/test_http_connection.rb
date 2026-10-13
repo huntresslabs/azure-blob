@@ -53,6 +53,17 @@ class TestHttpConnection < TestCase
     assert_equal [ "content", "form", nil, nil ], requests.map(&:body)
   end
 
+  def test_io_bodies_are_read_into_the_request_body
+    connection = FakeConnection.new
+    io = StringIO.new("streamed")
+
+    AzureBlob::Http.new(@uri, connection:).put(io)
+
+    request = connection.calls.fetch(0).last
+    assert_equal "streamed", request.body
+    assert_nil request.body_stream
+  end
+
   def test_streams_the_response_through_the_block
     connection = FakeConnection.new(body: "chunk")
     yielded = nil
@@ -79,5 +90,39 @@ class TestHttpConnection < TestCase
 
     assert_equal 2, connection.calls.size
     assert_equal [ Net::HTTP::Delete, Net::HTTP::Head ], connection.calls.map { |_, request| request.class }
+  end
+
+  def test_put_blob_block_sends_an_io_body_over_a_real_socket
+    server = TCPServer.new("127.0.0.1", 0)
+    received = Thread.new do
+      socket = server.accept
+      headers = {}
+      request_line = socket.gets
+      while (line = socket.gets) && line != "\r\n"
+        name, value = line.split(":", 2)
+        headers[name.downcase] = value.strip
+      end
+      body = socket.read(headers.fetch("content-length").to_i)
+      socket.write("HTTP/1.1 201 Created\r\nContent-Length: 0\r\nConnection: close\r\n\r\n")
+      socket.close
+      [ request_line, headers, body ]
+    end
+
+    client = AzureBlob::Client.new(
+      account_name: "account",
+      access_key: Base64.strict_encode64("secret"),
+      container: "container",
+      host: "http://127.0.0.1:#{server.addr[1]}",
+    )
+    content = "streamed block body"
+
+    client.put_blob_block("key", 0, StringIO.new(content))
+
+    request_line, headers, body = received.value
+    assert_match %r{\APUT /container/key\?comp=block&blockid=}, request_line
+    assert_equal content.bytesize.to_s, headers["content-length"]
+    assert_equal content, body
+  ensure
+    server&.close
   end
 end
