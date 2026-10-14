@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "block_list"
+require_relative "blob_batch"
 require_relative "blob_list"
 require_relative "blob"
 require_relative "container"
@@ -131,6 +132,30 @@ module AzureBlob
       }.merge(additional_headers(options))
 
       Http.new(uri, headers, signer:, connection:).delete
+    end
+
+    # Delete up to 256 blobs in one request.
+    #
+    # Calls to {Blob Batch}[https://learn.microsoft.com/en-us/rest/api/storageservices/blob-batch]
+    # with a {Delete Blob}[https://learn.microsoft.com/en-us/rest/api/storageservices/delete-blob]
+    # subrequest per key.
+    #
+    # The batch request itself raises like any other request. Each subrequest
+    # succeeds or fails on its own; returns an Array of BlobBatch::Failure
+    # (+key+, +status+, +error_code+) for every key that was not deleted,
+    # including keys that did not exist (404 BlobNotFound).
+    #
+    # Options are applied to every DELETE subrequest, same as +delete_blob+:
+    # [+:delete_snapshots+]
+    #   Sets the value of the x-ms-delete-snapshots header. Default to +include+
+    def delete_blobs(keys, options = {})
+      batch = BlobBatch.new(keys, signer:)
+      subrequest_headers = { "x-ms-delete-snapshots": options[:delete_snapshots] || "include" }.merge(additional_headers(options))
+      body = batch.delete_body(subrequest_headers) { |key| generate_uri("#{container}/#{key}") }
+      uri = generate_uri(container, restype: "container", comp: "batch")
+      headers = { "Content-Type": batch.content_type, "Content-Length": body.bytesize }
+
+      batch.failures(Http.new(uri, headers, signer:, connection:).post(body))
     end
 
     # Delete all blobs prefixed by the given prefix.
