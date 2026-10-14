@@ -27,8 +27,8 @@ module AzureBlob
     end
 
     # Returns the multipart body with one signed DELETE subrequest per key.
-    # +uri_for+ maps a key to its blob URI.
-    def delete_body(&uri_for)
+    # +headers+ are applied to every subrequest. +uri_for+ maps a key to its blob URI.
+    def delete_body(headers = {}, &uri_for)
       date = Time.now.httpdate
 
       keys.each_with_index.map do |key, index|
@@ -38,7 +38,7 @@ module AzureBlob
           "Content-Transfer-Encoding: binary",
           "Content-ID: #{index}",
           "",
-          *delete_subrequest(uri_for.call(key), date),
+          *delete_subrequest(uri_for.call(key), date, headers),
           "",
         ].join(CRLF)
       end.join(CRLF) + "#{CRLF}--#{boundary}--#{CRLF}"
@@ -63,8 +63,8 @@ module AzureBlob
 
     attr_reader :keys, :signer
 
-    def delete_subrequest(uri, date)
-      headers = { "x-ms-date": date, "x-ms-delete-snapshots": "include", "Content-Length": "0" }
+    def delete_subrequest(uri, date, extra_headers)
+      headers = { "x-ms-date": date, "Content-Length": "0" }.merge(extra_headers)
       authorization = signer.authorization_header(uri:, verb: "DELETE", headers:)
 
       [
@@ -76,7 +76,7 @@ module AzureBlob
     end
 
     def parse_results(response_body)
-      response_boundary = response_body[/\A--(\S+)/, 1]
+      response_boundary = response_body.to_s[/\A--(\S+)/, 1]
       return {} if response_boundary.nil?
 
       response_body.split("--#{response_boundary}").each_with_object({}) do |part, results|

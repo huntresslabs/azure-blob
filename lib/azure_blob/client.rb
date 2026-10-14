@@ -144,11 +144,16 @@ module AzureBlob
     # succeeds or fails on its own; returns an Array of BlobBatch::Failure
     # (+key+, +status+, +error_code+) for every key that was not deleted,
     # including keys that did not exist (404 BlobNotFound).
+    #
+    # Options are applied to every DELETE subrequest, same as +delete_blob+:
+    # [+:delete_snapshots+]
+    #   Sets the value of the x-ms-delete-snapshots header. Default to +include+
     def delete_blobs(keys, options = {})
       batch = BlobBatch.new(keys, signer:)
-      body = batch.delete_body { |key| generate_uri("#{container}/#{key}") }
+      subrequest_headers = { "x-ms-delete-snapshots": options[:delete_snapshots] || "include" }.merge(additional_headers(options))
+      body = batch.delete_body(subrequest_headers) { |key| generate_uri("#{container}/#{key}") }
       uri = generate_uri(container, restype: "container", comp: "batch")
-      headers = { "Content-Type": batch.content_type, "Content-Length": body.bytesize }.merge(additional_headers(options))
+      headers = { "Content-Type": batch.content_type, "Content-Length": body.bytesize }
 
       batch.failures(Http.new(uri, headers, signer:, connection:).post(body))
     end

@@ -59,6 +59,24 @@ class TestDeleteBlobs < TestCase
     assert request.body.end_with?("\r\n--#{boundary}--\r\n")
   end
 
+  def test_options_apply_to_every_subrequest_not_the_batch_request
+    connection = FakeConnection.new(status: "202", body: batch_response([ [ 0, "202 Accepted" ], [ 1, "202 Accepted" ] ]))
+
+    client(connection).delete_blobs(@keys, delete_snapshots: "only", headers: { lease_id: "lease-1", "if-match": "\"etag\"" })
+
+    request = connection.calls.fetch(0).last
+    assert_nil request["x-ms-lease_id"]
+    assert_nil request["x-ms-delete-snapshots"]
+    assert_nil request["if-match"]
+
+    boundary = request["Content-Type"][/boundary=(\S+)/, 1]
+    request.body.split("--#{boundary}")[1..-2].each do |subrequest|
+      assert_includes subrequest, "x-ms-delete-snapshots: only\r\n"
+      assert_includes subrequest, "x-ms-lease_id: lease-1\r\n"
+      assert_includes subrequest, "if-match: \"etag\"\r\n"
+    end
+  end
+
   def test_returns_failed_subrequests_with_status_and_error_code
     connection = FakeConnection.new(status: "202", body: batch_response([ [ 0, "404 The specified blob does not exist.", "BlobNotFound" ], [ 1, "503 Server busy", "ServerBusy" ] ]))
 
@@ -81,6 +99,12 @@ class TestDeleteBlobs < TestCase
 
   def test_non_multipart_responses_fail_every_key
     connection = FakeConnection.new(status: "202", body: "")
+
+    assert_equal [ [ "a/b c.json", nil, "MalformedBatchResponse" ], [ "d.json", nil, "MalformedBatchResponse" ] ], client(connection).delete_blobs(@keys).map(&:to_a)
+  end
+
+  def test_nil_response_body_fails_every_key
+    connection = FakeConnection.new(status: "202", body: nil)
 
     assert_equal [ [ "a/b c.json", nil, "MalformedBatchResponse" ], [ "d.json", nil, "MalformedBatchResponse" ] ], client(connection).delete_blobs(@keys).map(&:to_a)
   end
