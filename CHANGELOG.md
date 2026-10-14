@@ -1,5 +1,7 @@
 ## [Unreleased]
 
+- Add `delete_blobs` to delete up to 256 blobs per request via Blob Batch
+
 ## [0.5.9.1] 2025-06-30
 
 - Fix a regression in #13 + fix add a test

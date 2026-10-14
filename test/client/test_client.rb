@@ -249,6 +249,24 @@ class TestClient < TestCase
     end
   end
 
+  def test_delete_blobs
+    prefix = "#{name}_batch_#{@uid}"
+    keys = 3.times.map do |i|
+      key = "#{prefix}/#{i} ?#&+"
+      client.create_block_blob(key, content)
+      key
+    end
+
+    assert_empty client.delete_blobs(keys)
+
+    keys.each do |key|
+      assert_raises(AzureBlob::Http::FileNotFoundError) { client.get_blob(key) }
+    end
+
+    failures = client.delete_blobs(keys.first(1))
+    assert_equal [ [ keys.first, 404, "BlobNotFound" ] ], failures.map(&:to_a)
+  end
+
   def test_list_prefix
     prefix = "#{name}_prefix_#{@uid}"
     @key = "#{prefix}/#{key}"
