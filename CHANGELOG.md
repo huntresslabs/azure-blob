@@ -1,5 +1,6 @@
 ## [Unreleased]
 
+- Add `parser: :nokogiri` option to `list_blobs` to parse result pages with Nokogiri instead of REXML
 - Add `delete_blobs` to delete up to 256 blobs per request via Blob Batch
 
 ## [0.5.9.1] 2025-06-30
