@@ -184,6 +184,8 @@ module AzureBlob
     #    location within prefix’s specified range.
     # [:+max_results+]
     #   Maximum number of results to return per page.
+    # [:+parser+]
+    #   XML parser for result pages, +:rexml+ (default) or +:nokogiri+.
     def list_blobs(options = {})
       uri = generate_uri(container)
       query = {
@@ -202,7 +204,7 @@ module AzureBlob
         response = Http.new(uri, additional_headers(options), signer:, connection:).get
       end
 
-      BlobList.new(fetcher)
+      BlobList.new(fetcher, parser: options.fetch(:parser, :rexml))
     end
 
     # Returns a Blob object without the content.
