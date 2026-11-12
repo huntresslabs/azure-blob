@@ -92,7 +92,7 @@ module AzureBlob
       body = fetcher.call(marker)
 
       if @parser == :nokogiri
-        @document = Nokogiri::XML(body)
+        @document = Nokogiri::XML(body) { |config| config.strict }
         next_marker = document.at_xpath("/EnumerationResults/NextMarker")
         @current_marker = next_marker && nokogiri_text(next_marker)
       else

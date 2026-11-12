@@ -68,6 +68,13 @@ class TestBlobList < TestCase
     assert_equal [ nil, "marker-2" ], requested
   end
 
+  def test_nokogiri_parser_raises_on_a_truncated_page
+    truncated = page([ blob("logs/a.json", 10), blob("logs/b.json", 20) ], "marker-2")[0, 400]
+    list = AzureBlob::BlobList.new(->(_) { truncated }, parser: :nokogiri)
+
+    assert_raises(Nokogiri::XML::SyntaxError) { list.to_a }
+  end
+
   def test_unknown_parser
     assert_raises(ArgumentError) { AzureBlob::BlobList.new(->(_) { }, parser: :ox) }
   end
